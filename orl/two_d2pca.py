@@ -1,37 +1,73 @@
 import numpy as np
-from two_dpca import compute_2dpca
 
-def select_eigenvectors(eigvals, eigvecs, theta=0.95):
-    # 计算特征值的累计和
-    total_variance = np.sum(eigvals)
-    variance_ratio = eigvals / total_variance
-    cumulative_variance_ratio = np.cumsum(variance_ratio)
+class TwoD2PCA:
+    def __init__(self, threshold=0.95):
+        self.threshold = threshold
+        self.row_proj_matrix = None
+        self.col_proj_matrix = None
 
-    # 找到累计方差贡献率达到theta的特征向量数量
-    num_vectors = np.searchsorted(cumulative_variance_ratio, theta) + 1
-    return eigvecs[:, :num_vectors]
+    def fit(self, images):
+        image_shape = 60
+        row_cov_matrix = np.zeros((image_shape, image_shape))
+        col_cov_matrix = np.zeros((image_shape, image_shape))
 
-def compute_2d2pca(X, theta=0.95):
-    # 计算行方向和列方向的特征向量
-    row_eigvals, row_eigvecs = compute_2dpca(X)
-    col_eigvals, col_eigvecs = compute_2dpca(np.array([x.T for x in X]))
+        for image in images:
+            image = image.reshape(image_shape, image_shape)
+            row_cov_matrix += np.dot(image.T, image)
+            col_cov_matrix += np.dot(image, image.T)
 
-    # 根据累计方差贡献率选择特征向量
-    row_eigvecs = select_eigenvectors(row_eigvals, row_eigvecs, theta)
-    col_eigvecs = select_eigenvectors(col_eigvals, col_eigvecs, theta)
-    return row_eigvecs, col_eigvecs
+        row_cov_matrix /= images.shape[0]
+        col_cov_matrix /= images.shape[0]
 
-def project_2d2pca(X, row_eigvecs, col_eigvecs):
-    return [col_eigvecs.T @ x @ row_eigvecs for x in X]
+        row_eig_values, row_eig_vectors = np.linalg.eigh(row_cov_matrix)
+        col_eig_values, col_eig_vectors = np.linalg.eigh(col_cov_matrix)
+
+        row_sorted_indices = np.argsort(row_eig_values)[::-1]
+        col_sorted_indices = np.argsort(col_eig_values)[::-1]
+
+        row_eig_values = row_eig_values[row_sorted_indices]
+        col_eig_values = col_eig_values[col_sorted_indices]
+
+        row_eig_vectors = row_eig_vectors[:, row_sorted_indices]
+        col_eig_vectors = col_eig_vectors[:, col_sorted_indices]
+
+        row_cumulative_sum = np.cumsum(row_eig_values)
+        row_total_sum = row_cumulative_sum[-1]
+        row_num_components = np.searchsorted(row_cumulative_sum / row_total_sum, self.threshold) + 1
+
+        col_cumulative_sum = np.cumsum(col_eig_values)
+        col_total_sum = col_cumulative_sum[-1]
+        col_num_components = np.searchsorted(col_cumulative_sum / col_total_sum, self.threshold) + 1
+
+        self.row_proj_matrix = row_eig_vectors[:, :row_num_components]
+        self.col_proj_matrix = col_eig_vectors[:, :col_num_components]
+
+    def transform(self, images):
+        image_shape = 60
+        projected_images = []
+        for image in images:
+            image = image.reshape(image_shape, image_shape)
+            projected_image = np.dot(np.dot(self.col_proj_matrix.T, image), self.row_proj_matrix)
+            projected_images.append(projected_image.flatten())
+        return np.array(projected_images)
 
 if __name__ == "__main__":
-    from load_data import load_orl_data
-    from preprocess_data import preprocess_images
+    from load_data import load_data
+    from preprocess_data import preprocess_data
 
-    data_dir = 'C:\\Users\\33455\\Desktop\\附加题\\archive'
-    X, y = load_orl_data(data_dir)
-    X = preprocess_images(X)
+    data_dir = r'C:\Users\33455\Desktop\附加题\orl\archive'
+    (train_images, train_labels), (test_images, test_labels) = load_data(data_dir)
 
-    row_eigvecs, col_eigvecs = compute_2d2pca(X, theta=0.95)
-    projected_X = project_2d2pca(X, row_eigvecs, col_eigvecs)
-    print(f'(2D)²PCA computed and projected. Projected X shape: {np.array(projected_X).shape}')
+    train_images_centered, mean_image = preprocess_data(train_images)
+    test_images_centered = test_images - mean_image
+
+    train_images_centered = train_images_centered.reshape(-1, 60, 60)
+    test_images_centered = test_images_centered.reshape(-1, 60, 60)
+
+    two_d2pca = TwoD2PCA(threshold=0.95)
+    two_d2pca.fit(train_images_centered)
+    train_projected = two_d2pca.transform(train_images_centered).reshape(train_images_centered.shape[0], -1)
+    test_projected = two_d2pca.transform(test_images_centered).reshape(test_images_centered.shape[0], -1)
+
+    print(f'Projected training data shape: {train_projected.shape}')
+    print(f'Projected test data shape: {test_projected.shape}')

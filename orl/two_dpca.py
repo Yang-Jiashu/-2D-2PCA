@@ -1,31 +1,52 @@
 import numpy as np
 
-def compute_2dpca(X):
-    # 计算图像均值
-    mean_image = np.mean(X, axis=0)
-    # 计算协方差矩阵
-    cov_matrix = np.zeros((mean_image.shape[1], mean_image.shape[1]))
-    for img in X:
-        diff = img - mean_image
-        cov_matrix += np.dot(diff.T, diff)
-    cov_matrix /= X.shape[0]
-    # 对协方差矩阵进行特征值分解
-    eigvals, eigvecs = np.linalg.eigh(cov_matrix)
-    # 返回特征值和特征向量（即投影矩阵）
-    return eigvals, eigvecs
+class TwoDPCA:
+    def __init__(self, threshold=0.95):
+        self.threshold = threshold
+        self.projection_matrix = None
 
-def project_2dpca(X, eigvecs):
-    # 投影图像到特征向量空间
-    return [x @ eigvecs for x in X]
+    def fit(self, images):
+        image_shape = 60
+        cov_matrix = np.zeros((image_shape, image_shape))
+        for image in images:
+            image = image.reshape(image_shape, image_shape)
+            cov_matrix += np.dot(image.T, image)
+        cov_matrix /= images.shape[0]
+
+        eig_values, eig_vectors = np.linalg.eigh(cov_matrix)
+        sorted_indices = np.argsort(eig_values)[::-1]
+        eig_values = eig_values[sorted_indices]
+        eig_vectors = eig_vectors[:, sorted_indices]
+
+        cumulative_sum = np.cumsum(eig_values)
+        total_sum = cumulative_sum[-1]
+        num_components = np.searchsorted(cumulative_sum / total_sum, self.threshold) + 1
+
+        self.projection_matrix = eig_vectors[:, :num_components]
+
+    def transform(self, images):
+        image_shape = 60
+        projected_images = []
+        for image in images:
+            image = image.reshape(image_shape, image_shape)
+            projected_image = np.dot(image, self.projection_matrix)
+            projected_images.append(projected_image.flatten())
+        return np.array(projected_images)
 
 if __name__ == "__main__":
-    from load_data import load_orl_data
-    from preprocess_data import preprocess_images
+    from load_data import load_data
+    from preprocess_data import preprocess_data
 
-    data_dir = 'C:\\Users\\33455\\Desktop\\附加题\\archive'
-    X, y = load_orl_data(data_dir)
-    X = preprocess_images(X)
+    data_dir = r'C:\Users\33455\Desktop\附加题\orl\archive'
+    (train_images, train_labels), (test_images, test_labels) = load_data(data_dir)
 
-    eigvals, eigvecs = compute_2dpca(X)
-    projected_X = project_2dpca(X, eigvecs)
-    print(f'2DPCA computed and projected. Projected X shape: {np.array(projected_X).shape}')
+    train_images_centered, mean_image = preprocess_data(train_images)
+    test_images_centered = test_images - mean_image
+
+    two_dpca = TwoDPCA(threshold=0.95)
+    two_dpca.fit(train_images_centered)
+    train_projected = two_dpca.transform(train_images_centered)
+    test_projected = two_dpca.transform(test_images_centered)
+
+    print(f'Projected training data shape: {train_projected.shape}')
+    print(f'Projected test data shape: {test_projected.shape}')

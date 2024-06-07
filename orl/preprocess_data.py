@@ -1,22 +1,19 @@
 import numpy as np
 
-def preprocess_images(X):
-    if len(X) == 0:
-        return X
-    # 将图像数据标准化为0到1之间
-    X = X.astype('float32') / 255.0
-    # 平均值归零
-    X -= np.mean(X, axis=0)
-    # 标准差归一
-    X /= np.std(X, axis=0)
-    return X
+def preprocess_data(images):
+    mean_image = np.mean(images, axis=0)
+    images_centered = images - mean_image
+    return images_centered, mean_image
 
 if __name__ == "__main__":
-    from load_data import load_orl_data
+    from load_data import load_data
 
     data_dir = r'C:\Users\33455\Desktop\附加题\orl\archive'
-    X_train, y_train, X_test, y_test = load_orl_data(data_dir)
-    print(f'Data loaded. Training set size: {X_train.shape}, Testing set size: {X_test.shape}')
-    X_train = preprocess_images(X_train)
-    X_test = preprocess_images(X_test)
-    print(f'Data preprocessed. Training set shape: {X_train.shape}, Testing set shape: {X_test.shape}')
+    (train_images, train_labels), (test_images, test_labels) = load_data(data_dir)
+
+    train_images_centered, mean_image = preprocess_data(train_images)
+    test_images_centered = test_images - mean_image
+
+    print(f'Mean image shape: {mean_image.shape}')
+    print(f'Centered training data shape: {train_images_centered.shape}')
+    print(f'Centered test data shape: {test_images_centered.shape}')
