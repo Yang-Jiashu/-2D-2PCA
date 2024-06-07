@@ -2,11 +2,11 @@ import numpy as np
 from sklearn.neighbors import KNeighborsClassifier
 from load_data import load_feret_data
 from preprocess_data import preprocess_data
+from two_dpca import TwoDPCA
 from two_d2pca import TwoD2PCA
 
-
 def run_experiment():
-    data_dir = 'C:\\Users\\33455\\Desktop\\附加题\\feret'
+    data_dir = r'C:\Users\33455\Desktop\附加题\feret\dataset'
     (train_images, train_labels), (test_images, test_labels) = load_feret_data(data_dir)
 
     train_images_centered, mean_image = preprocess_data(train_images)
@@ -15,20 +15,30 @@ def run_experiment():
     train_images_centered = train_images_centered.reshape(-1, 60, 60)
     test_images_centered = test_images_centered.reshape(-1, 60, 60)
 
-    two_d2pca = TwoD2PCA(row_components=13, col_components=14)
+    # 2DPCA
+    two_dpca = TwoDPCA(threshold=0.95)
+    two_dpca.fit(train_images_centered)
+    train_projected_2dpca = two_dpca.transform(train_images_centered).reshape(train_images_centered.shape[0], -1)
+    test_projected_2dpca = two_dpca.transform(test_images_centered).reshape(test_images_centered.shape[0], -1)
+
+    # (2D)^2PCA
+    two_d2pca = TwoD2PCA(threshold=0.95)
     two_d2pca.fit(train_images_centered)
-    train_projected = two_d2pca.transform(train_images_centered).reshape(train_images_centered.shape[0], -1)
-    test_projected = two_d2pca.transform(test_images_centered).reshape(test_images_centered.shape[0], -1)
+    train_projected_2d2pca = two_d2pca.transform(train_images_centered).reshape(train_images_centered.shape[0], -1)
+    test_projected_2d2pca = two_d2pca.transform(test_images_centered).reshape(test_images_centered.shape[0], -1)
 
-    print(f'Train labels: {train_labels}')
-    print(f'Test labels: {test_labels}')
-
+    # 分类和准确性评估
     knn = KNeighborsClassifier(n_neighbors=1)
-    knn.fit(train_projected, train_labels)
 
-    accuracy = knn.score(test_projected, test_labels)
-    print(f'Accuracy: {accuracy * 100:.2f}%')
+    # 2DPCA分类
+    knn.fit(train_projected_2dpca, train_labels)
+    accuracy_2dpca = knn.score(test_projected_2dpca, test_labels)
+    print(f'2DPCA Accuracy: {accuracy_2dpca * 100:.2f}%')
 
+    # (2D)^2PCA分类
+    knn.fit(train_projected_2d2pca, train_labels)
+    accuracy_2d2pca = knn.score(test_projected_2d2pca, test_labels)
+    print(f'(2D)^2PCA Accuracy: {accuracy_2d2pca * 100:.2f}%')
 
 if __name__ == "__main__":
     run_experiment()

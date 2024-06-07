@@ -1,12 +1,12 @@
 import numpy as np
 
 class TwoDPCA:
-    def __init__(self, num_components):
-        self.num_components = num_components
+    def __init__(self, threshold=0.95):
+        self.threshold = threshold
         self.projection_matrix = None
 
     def fit(self, images):
-        image_shape = int(np.sqrt(images.shape[1]))
+        image_shape = 60  # 硬编码图像尺寸为 60x60
         cov_matrix = np.zeros((image_shape, image_shape))
         for image in images:
             image = image.reshape(image_shape, image_shape)
@@ -15,10 +15,18 @@ class TwoDPCA:
 
         eig_values, eig_vectors = np.linalg.eigh(cov_matrix)
         sorted_indices = np.argsort(eig_values)[::-1]
-        self.projection_matrix = eig_vectors[:, sorted_indices[:self.num_components]]
+        eig_values = eig_values[sorted_indices]
+        eig_vectors = eig_vectors[:, sorted_indices]
+
+        # 根据累计贡献率确定特征向量的数量
+        cumulative_sum = np.cumsum(eig_values)
+        total_sum = cumulative_sum[-1]
+        num_components = np.searchsorted(cumulative_sum / total_sum, self.threshold) + 1
+
+        self.projection_matrix = eig_vectors[:, :num_components]
 
     def transform(self, images):
-        image_shape = int(np.sqrt(images.shape[1]))
+        image_shape = 60  # 硬编码图像尺寸为 60x60
         projected_images = []
         for image in images:
             image = image.reshape(image_shape, image_shape)
@@ -30,13 +38,13 @@ if __name__ == "__main__":
     from load_data import load_feret_data
     from preprocess_data import preprocess_data
 
-    data_dir = 'C:\\Users\\33455\\Desktop\\附加题\\feret'
+    data_dir = r'C:\Users\33455\Desktop\附加题\feret\dataset'
     (train_images, train_labels), (test_images, test_labels) = load_feret_data(data_dir)
 
     train_images_centered, mean_image = preprocess_data(train_images)
     test_images_centered = test_images - mean_image
 
-    two_dpca = TwoDPCA(num_components=30)
+    two_dpca = TwoDPCA(threshold=0.95)
     two_dpca.fit(train_images_centered)
     train_projected = two_dpca.transform(train_images_centered)
     test_projected = two_dpca.transform(test_images_centered)

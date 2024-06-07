@@ -2,18 +2,6 @@ import os
 import numpy as np
 from PIL import Image
 
-def load_orl_data(data_dir):
-    images = []
-    labels = []
-    for person in range(40):
-        for img_num in range(10):
-            img_path = os.path.join(data_dir, f's{person+1}', f'{img_num+1}.pgm')
-            img = Image.open(img_path).convert('L')
-            img = img.resize((112, 92))
-            images.append(np.array(img).flatten())
-            labels.append(person)
-    return np.array(images), np.array(labels)
-
 def load_feret_data(data_dir):
     train_images = []
     test_images = []
